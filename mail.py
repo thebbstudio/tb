@@ -8,14 +8,10 @@ def send_email(data):
     password = conf.password
     receiver = conf.receiver
 
-    text = 'Имя клиента: ' + str(data.get('name')) \
-           + '\nГород: ' + str(data.get('city')) \
-           + '\nТип платформы: ' + str(data.get('platform_type')) + '\n'
-
-    if data.get('phone') is not None:
-        text = text + 'Телефон: ' + str(data.get('phone')) + '\n'
-    if data.get('mail') is not None:
-        text = text + 'Почта: ' + str(data.get('mail')) + '\n'
+    text = 'Имя и город: ' + str(data[1]) \
+           + '\nКонтактная информация: ' + str(data[3]) \
+           + '\nОписание: ' + str(data[2]) \
+           + '\nМаркет плайс: ' + str(data[4]) + '\n'
 
     server = smtplib.SMTP('smtp.gmail.com', 587)
     print(text)

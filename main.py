@@ -1,5 +1,5 @@
 import telebot
-from datebase import *
+import database as db
 import msglist
 import mail
 import time
@@ -10,118 +10,54 @@ bot = telebot.TeleBot(conf.token)
 
 
 def select_data_user(msg_chat_id):
-    with db:
-        user = User.get(message_chat_id=msg_chat_id)
-        return {'name': user.name, 'city': user.city, 'phone': user.phone, 'mail': user.mail,
-                'platform_type': user.platform_type}
+    return db.select_user_data(msg_chat_id)
 
 
-def insertOrUpdate(msg_chat_id, typePlace, data):
-    tpd = {'1': 'Магазин', '2': 'Интернет магазин', '3': 'Инстаграм'}
-    if typePlace == 'name':
-        User.insert(message_chat_id=msg_chat_id, name=data) \
-            .on_conflict(
-            conflict_target=[User.message_chat_id],
-            update={User.name: data}) \
-            .execute()
-    elif typePlace == 'city':
-        User.insert(message_chat_id=msg_chat_id, city=data) \
-            .on_conflict(
-            conflict_target=[User.message_chat_id],
-            update={User.city: data}) \
-            .execute()
-    elif typePlace == 'phone':
-        User.insert(message_chat_id=msg_chat_id, phone=data) \
-            .on_conflict(
-            conflict_target=[User.message_chat_id],
-            update={User.phone: data}) \
-            .execute()
-    elif typePlace == 'mail':
-        User.insert(message_chat_id=msg_chat_id, mail=data) \
-            .on_conflict(
-            conflict_target=[User.message_chat_id],
-            update={User.mail: data}) \
-            .execute()
-    elif typePlace == 'pt':
-        User.insert(message_chat_id=msg_chat_id, platform_type=tpd.get(data)) \
-            .on_conflict(
-            conflict_target=[User.message_chat_id],
-            update={User.platform_type: tpd.get(data)}) \
-            .execute()
-    else:
-        print("Ошибка, нету такого типа:", typePlace)
 
 
-# Начали и спросили имя
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    # First msg
     bot.send_message(message.chat.id, msglist.start_msg)
-    msg = bot.send_message(message.chat.id, msglist.name_msg)
-    bot.register_next_step_handler(msg, city_msg)
+    # What`s u name
+    msg = bot.send_message(message.chat.id, msglist.name_city)
+    bot.register_next_step_handler(msg, desc)
 
 
-# Записали имя и спросили город
-def city_msg(message):
-    insertOrUpdate(message.chat.id, 'name', message.text)
-
-    msg = bot.send_message(message.chat.id, msglist.city_msg)
-    bot.register_next_step_handler(msg, pf_msg)
-
-
-# Записали город и спросили платформу
-def pf_msg(message):
-    insertOrUpdate(message.chat.id, 'city', message.text)
-
-    msg = bot.send_message(message.chat.id, msglist.pt_msg)
-    bot.register_next_step_handler(msg, phone_msg)
+def desc(message):
+    # set name_city
+    db.insert_name_city(message.chat.id, message.text)
+    # what`s u desc
+    msg = bot.send_message(message.chat.id, msglist.desc)
+    bot.register_next_step_handler(msg, contact_data)
 
 
-# Записали город и спросили платформу
-def phone_msg(message):
-    insertOrUpdate(message.chat.id, 'pt', message.text)
-
-    msg = bot.send_message(message.chat.id, msglist.phone)
-    bot.register_next_step_handler(msg, mail_question)
-
-
-# Спросили нужна ли почта
-def mail_question(message):
-    insertOrUpdate(message.chat.id, 'phone', message.text)
-
-    msg = bot.send_message(message.chat.id, msglist.mail_question)
-    bot.register_next_step_handler(msg, mail_msg)
+def contact_data(message):
+    # set desc
+    db.insert_client_desc(message.chat.id, message.text)
+    # get u contact_data
+    msg = bot.send_message(message.chat.id, msglist.contact_data)
+    bot.register_next_step_handler(msg, market_place)
 
 
-# Записали платформу и спросили mail
-def mail_msg(message):
-    if message.text == 'Да' or message.text == 'да':
-        msg = bot.send_message(message.chat.id, msglist.mail_msg)
-        bot.register_next_step_handler(msg, send_finish_mail)
-    else:
-        send_finish(message)
+def market_place(message):
+    # set contact_data
+    db.insert_contact_data(message.chat.id, message.text)
+    # u going to mp
+    msg = bot.send_message(message.chat.id, msglist.market_place)
+    bot.register_next_step_handler(msg, finish_msg)
 
 
 # Записали почту и должны будем отправлять итоговое сообщение
-def send_finish(message):
-    bot.send_message(message.chat.id, msglist.finish_msg)
-    mail.send_email(select_data_user(message.chat.id))
-
-
-# Записали почту и должны будем отправлять итоговое сообщение
-def send_finish_mail(message):
-    insertOrUpdate(message.chat.id, 'mail', message.text)
+def finish_msg(message):
+    db.insert_market_place(message.chat.id, message.text)
     bot.send_message(message.chat.id, msglist.finish_msg)
     mail.send_email(select_data_user(message.chat.id))
 
 
 if __name__ == '__main__':
-    if not os.path.isfile('db.db'):
-        print('Файл базы данных отсутсвует')
-        my_file = open('db.db', "w+")
-        my_file.close()
-        with db:
-            db.create_tables([User])
-
+    db.create_tables()
     while True:
         try:
             bot.polling(none_stop=True)
